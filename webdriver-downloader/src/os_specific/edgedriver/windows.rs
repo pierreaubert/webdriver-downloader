@@ -1,6 +1,8 @@
 use std::path::PathBuf;
+use std::process::Command;
 
 use crate::os_specific::DefaultPathError;
+use crate::traits::version_req_url_info::VersionReqError;
 
 pub const DRIVER_EXECUTABLE_NAME: &str = "msedgedriver.exe";
 
@@ -9,9 +11,12 @@ pub fn default_browser_path() -> Result<PathBuf, DefaultPathError> {
     let program_files = std::env::var("ProgramFiles")?;
     let program_files_x86 = std::env::var("ProgramFiles(x86)")
         .unwrap_or_else(|_| "C:\\Program Files (x86)".to_string());
-    
-    eprintln!("Searching for Edge in Program Files: {}", program_files);
-    eprintln!("Searching for Edge in Program Files (x86): {}", program_files_x86);
+
+    // Debug: Show search paths
+    eprintln!(
+        "Searching for Edge in: {} and {}",
+        program_files, program_files_x86
+    );
 
     let possible_paths = [
         // Stable channel paths
@@ -33,7 +38,6 @@ pub fn default_browser_path() -> Result<PathBuf, DefaultPathError> {
 
     for path in &possible_paths {
         let path_buf = PathBuf::from(path);
-        eprintln!("Checking Edge path: {}", path);
         if path_buf.exists() {
             eprintln!("Found Edge at: {}", path);
             return Ok(path_buf);
@@ -44,4 +48,42 @@ pub fn default_browser_path() -> Result<PathBuf, DefaultPathError> {
     Ok(PathBuf::from(format!(
         "{program_files}\\Microsoft\\Edge\\Application\\msedge.exe"
     )))
+}
+
+/// Get Edge version on Windows using PowerShell to read file properties
+/// This is needed because `msedge.exe --version` doesn't work properly on Windows
+pub fn get_edge_version(browser_path: &std::path::Path) -> Result<String, VersionReqError> {
+    // Use PowerShell to get the file version
+    let powershell_script = format!(
+        "(Get-Item '{}').VersionInfo.ProductVersion",
+        browser_path.display().to_string().replace("\\", "\\\\")
+    );
+
+    let output = Command::new("powershell")
+        .args(["-NoProfile", "-Command", &powershell_script])
+        .output()
+        .map_err(VersionReqError::Execute)?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    if !stderr.is_empty() {
+        eprintln!("PowerShell stderr: '{}'", stderr.trim());
+    }
+
+    if !output.status.success() {
+        return Err(VersionReqError::RegexError(format!(
+            "PowerShell command failed with exit code: {}",
+            output.status.code().unwrap_or(-1)
+        )));
+    }
+
+    let version_str = stdout.trim();
+    if version_str.is_empty() {
+        return Err(VersionReqError::RegexError(
+            "PowerShell returned empty version string".to_string(),
+        ));
+    }
+
+    Ok(version_str.to_string())
 }
