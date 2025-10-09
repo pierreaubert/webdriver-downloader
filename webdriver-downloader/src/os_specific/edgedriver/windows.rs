@@ -12,12 +12,6 @@ pub fn default_browser_path() -> Result<PathBuf, DefaultPathError> {
     let program_files_x86 = std::env::var("ProgramFiles(x86)")
         .unwrap_or_else(|_| "C:\\Program Files (x86)".to_string());
 
-    // Debug: Show search paths
-    eprintln!(
-        "Searching for Edge in: {} and {}",
-        program_files, program_files_x86
-    );
-
     let possible_paths = [
         // Stable channel paths
         format!("{program_files}\\Microsoft\\Edge\\Application\\msedge.exe"),
@@ -39,7 +33,6 @@ pub fn default_browser_path() -> Result<PathBuf, DefaultPathError> {
     for path in &possible_paths {
         let path_buf = PathBuf::from(path);
         if path_buf.exists() {
-            eprintln!("Found Edge at: {}", path);
             return Ok(path_buf);
         }
     }
@@ -66,10 +59,6 @@ pub fn get_edge_version(browser_path: &std::path::Path) -> Result<String, Versio
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-
-    if !stderr.is_empty() {
-        eprintln!("PowerShell stderr: '{}'", stderr.trim());
-    }
 
     if !output.status.success() {
         return Err(VersionReqError::RegexError(format!(

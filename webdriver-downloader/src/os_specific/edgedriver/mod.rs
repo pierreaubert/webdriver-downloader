@@ -13,6 +13,8 @@ mod macos;
 mod windows;
 
 use std::path::PathBuf;
+
+#[cfg(not(target_os = "windows"))]
 use std::process::Command;
 
 use crate::os_specific::DefaultPathError;
@@ -62,11 +64,6 @@ fn get_version_string(browser_path: &std::path::Path) -> Result<String, VersionR
         .map_err(VersionReqError::Execute)?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    if !stderr.is_empty() {
-        eprintln!("Edge stderr: {}", stderr.trim());
-    }
 
     // Microsoft Edge version format: "Microsoft Edge 141.0.3537.57"
     let version_str = stdout
