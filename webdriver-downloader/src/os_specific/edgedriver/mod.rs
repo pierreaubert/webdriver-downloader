@@ -30,22 +30,35 @@ pub fn binary_version(browser_path: &std::path::Path) -> Result<semver::Version,
         .map_err(VersionReqError::Execute)?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    
+    // Debug: Log the raw output for troubleshooting
+    if !stdout.is_empty() {
+        eprintln!("Edge stdout: {}", stdout.trim());
+    }
+    if !stderr.is_empty() {
+        eprintln!("Edge stderr: {}", stderr.trim());
+    }
 
     // Microsoft Edge version format: "Microsoft Edge 141.0.3537.57"
     let version_str = stdout
         .split_whitespace()
         .last()
-        .ok_or_else(|| VersionReqError::RegexError("Unable to parse Edge version".to_string()))?
+        .ok_or_else(|| VersionReqError::RegexError(format!("Unable to parse Edge version from output: '{}'", stdout.trim())))?
         .trim();
 
     // Edge uses a 4-component version (major.minor.patch.build)
     // We need to convert this to a 3-component semver
     // Take the first 3 components as major.minor.patch
     let parts: Vec<&str> = version_str.split('.').collect();
+    eprintln!("Edge version parts: {:?}", parts);
+    
     if parts.len() >= 3 {
         let semver_str = format!("{}.{}.{}", parts[0], parts[1], parts[2]);
-        semver::Version::parse(&semver_str).map_err(VersionReqError::ParseVersionReq)
+        eprintln!("Parsed semver string: {}", semver_str);
+        semver::Version::parse(&semver_str).map_err(|e| VersionReqError::RegexError(format!("Failed to parse semver '{}': {}", semver_str, e)))
     } else {
+        eprintln!("Fallback to lenient parsing for version: {}", version_str);
         // Fallback to lenient parsing if format is unexpected
         lenient_semver::parse(version_str).map_err(|e| VersionReqError::ParseVersion(e.owned()))
     }
@@ -110,4 +123,10 @@ fn platform_string() -> &'static str {
 #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
 fn platform_string() -> &'static str {
     "arm64"
+}
+
+// Fallback for other Windows architectures
+#[cfg(all(target_os = "windows", not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))))]
+fn platform_string() -> &'static str {
+    "win64" // Default to win64 for unknown Windows architectures
 }

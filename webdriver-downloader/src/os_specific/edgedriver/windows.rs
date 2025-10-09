@@ -9,6 +9,9 @@ pub fn default_browser_path() -> Result<PathBuf, DefaultPathError> {
     let program_files = std::env::var("ProgramFiles")?;
     let program_files_x86 = std::env::var("ProgramFiles(x86)")
         .unwrap_or_else(|_| "C:\\Program Files (x86)".to_string());
+    
+    eprintln!("Searching for Edge in Program Files: {}", program_files);
+    eprintln!("Searching for Edge in Program Files (x86): {}", program_files_x86);
 
     let possible_paths = [
         // Stable channel paths
@@ -30,7 +33,9 @@ pub fn default_browser_path() -> Result<PathBuf, DefaultPathError> {
 
     for path in &possible_paths {
         let path_buf = PathBuf::from(path);
+        eprintln!("Checking Edge path: {}", path);
         if path_buf.exists() {
+            eprintln!("Found Edge at: {}", path);
             return Ok(path_buf);
         }
     }
