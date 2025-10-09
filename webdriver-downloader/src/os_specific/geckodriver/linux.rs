@@ -1,5 +1,5 @@
-use which::which;
 use std::path::PathBuf;
+use which::which;
 
 use crate::os_specific::DefaultPathError;
 
