@@ -50,8 +50,34 @@ pub trait WebdriverInstallationInfo {
         let archive_type =
             detect_archive_type(url.as_ref()).ok_or(InstallationError::UnknownArchiveFormat)?;
 
-        let response = reqwest::get(url).await?;
-        let content = Cursor::new(response.bytes().await?);
+        tracing::debug!("Starting download from: {}", url.as_ref());
+        
+        // Create a client with proper timeout settings
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(300)) // 5 minutes timeout
+            .connect_timeout(std::time::Duration::from_secs(30)) // 30 seconds connect timeout
+            .build()
+            .map_err(|e| InstallationError::Download(e))?;
+            
+        let response = client.get(url).send().await?;
+        
+        // Check if response is successful
+        if !response.status().is_success() {
+            return Err(InstallationError::Other(anyhow::anyhow!(
+                "Download failed with HTTP status: {}", 
+                response.status()
+            )));
+        }
+        
+        tracing::debug!("Download response status: {}", response.status());
+        let content_length = response.content_length();
+        if let Some(len) = content_length {
+            tracing::debug!("Expected content length: {} bytes", len);
+        }
+        
+        let bytes = response.bytes().await?;
+        tracing::debug!("Downloaded {} bytes", bytes.len());
+        let content = Cursor::new(bytes);
 
         let driver_executable_name = self.driver_executable_name();
         let driver_path = dir.path().join(driver_executable_name);
