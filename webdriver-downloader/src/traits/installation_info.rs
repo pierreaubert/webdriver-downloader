@@ -261,6 +261,42 @@ mod tests {
     use flate2::Compression;
     use tar::Builder;
     use tempfile::tempdir;
+    use zip::write::SimpleFileOptions;
+
+    fn create_test_zip(entry_name: &str, content: &[u8]) -> Vec<u8> {
+        let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        archive
+            .start_file(entry_name, SimpleFileOptions::default())
+            .unwrap();
+        archive.write_all(content).unwrap();
+        archive.finish().unwrap().into_inner()
+    }
+
+    #[test]
+    fn test_extract_zip_finds_nested_driver() {
+        let temp_dir = tempdir().unwrap();
+        let output_path = temp_dir.path().join("chromedriver");
+        let content = b"driver executable";
+        let archive = create_test_zip("chromedriver-linux64/chromedriver", content);
+
+        let copied = extract_zip(Cursor::new(Bytes::from(archive)), "chromedriver", &output_path)
+            .unwrap();
+
+        assert_eq!(copied, content.len() as u64);
+        assert_eq!(std::fs::read(output_path).unwrap(), content);
+    }
+
+    #[test]
+    fn test_extract_zip_rejects_missing_driver() {
+        let temp_dir = tempdir().unwrap();
+        let output_path = temp_dir.path().join("chromedriver");
+        let archive = create_test_zip("other/executable", b"not the driver");
+
+        let result = extract_zip(Cursor::new(Bytes::from(archive)), "chromedriver", &output_path);
+
+        assert!(matches!(result, Err(InstallationError::ExtractZip(_))));
+        assert!(!output_path.exists());
+    }
 
     /// Create a test TAR.GZ archive containing a mock executable file
     fn create_test_tar_gz(executable_name: &str, content: &[u8]) -> Vec<u8> {
